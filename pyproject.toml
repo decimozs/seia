@@ -1,0 +1,41 @@
+[project]
+name = "seia"
+version = "0.1.0"
+description = "A intelligent agentic pipeline designed to bridge the gap between unstructured document ingestion and structured enterprise accounting"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi[standard]>=0.136.1",
+    "langchain>=1.2.15",
+    "langchain-community>=0.4.1",
+    "langchain-ollama>=1.1.0",
+    "langgraph>=1.1.10",
+    "langgraph-cli[inmem]>=0.4.24",
+    "pypdf>=6.10.2",
+    "python-dotenv>=1.2.2",
+    "qdrant-client>=1.17.1",
+    "sentence-transformers>=5.4.1",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.20.2",
+    "ruff>=0.15.12",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
