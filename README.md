@@ -3,6 +3,7 @@
 Agentic pipeline bridging unstructured document ingestion and structured enterprise accounting. Uses RAG-powered auditing to verify invoices against company policy.
 
 ## Features
+- **UiPath RPA Integration**: Automated workflows for document retrieval and downstream ERP entry.
 - **Unstructured Ingestion**: Process PDF invoices using `PyPDFLoader`.
 - **Structured Extraction**: AI-driven data extraction via LangChain and Ollama.
 - **RAG-based Auditing**: Semantic search (Qdrant) to retrieve relevant company policies for expense validation.
