@@ -6,9 +6,12 @@ from typing import Dict
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from langchain_community.document_loaders import PyPDFLoader
+from langfuse.langchain import CallbackHandler
 
 from app.agent import graph
 from app.state import AgentState
+
+langfuse_handler = CallbackHandler()
 
 app = FastAPI()
 
@@ -29,7 +32,10 @@ def run_langgraph_agent(task_id: str, content: str):
             "audit_remarks": "",
             "human_feedback": "",
         }
-        current_config = {"configurable": {"thread_id": task_id}}
+        current_config = {
+            "configurable": {"thread_id": task_id},
+            "callbacks": [langfuse_handler],
+        }
         result = graph.invoke(initial_state, config=current_config)
         results_store[task_id] = {"status": "completed", "result": result}
     except Exception as e:
