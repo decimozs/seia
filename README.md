@@ -1,6 +1,6 @@
-# seia: Smart Expense & Invoice Auditor
+# seia
 
-Agentic pipeline bridging unstructured document ingestion and structured enterprise accounting. Uses RAG-powered auditing to verify invoices against company policy.
+Smart Expense & Invoice Auditor agentic pipeline bridging unstructured document ingestion and structured enterprise accounting. Uses RAG-powered auditing to verify invoices against company policy.
 
 ## Features
 - **UiPath RPA Integration**: Automated workflows for document retrieval and downstream ERP entry.
@@ -57,9 +57,9 @@ flowchart LR
    ```env
    QDRANT_URL=your_qdrant_url
    QDRANT_API_KEY=your_api_key
-    LANGFUSE_PUBLIC_KEY=your_public_key
-    LANGFUSE_SECRET_KEY=your_secret_key
-    LANGFUSE_HOST=https://cloud.langfuse.com
+   LANGFUSE_PUBLIC_KEY=your_public_key
+   LANGFUSE_SECRET_KEY=your_secret_key
+   LANGFUSE_HOST=https://cloud.langfuse.com
    ```
 
 `QDRANT_API_KEY` is required for `app/seed.py`. It is optional at runtime if your Qdrant instance is not secured.
