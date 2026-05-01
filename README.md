@@ -5,14 +5,15 @@ Agentic pipeline bridging unstructured document ingestion and structured enterpr
 ## Features
 - **UiPath RPA Integration**: Automated workflows for document retrieval and downstream ERP entry.
 - **Unstructured Ingestion**: Process PDF invoices using `PyPDFLoader`.
-- **Structured Extraction**: AI-driven data extraction via LangChain and Ollama.
+- **Structured Extraction**: AI-driven data extraction via LangChain + Ollama.
 - **RAG-based Auditing**: Semantic search (Qdrant) to retrieve relevant company policies for expense validation.
-- **Human-in-the-Loop**: Automated escalation to manual review for policy violations.
-- **FastAPI Integration**: Asynchronous processing with background tasks.
+- **Human-in-the-Loop**: Manual review step when policy violations are detected.
+- **Async Processing**: Background task execution with status polling.
+- **Healthcheck**: Lightweight `/healthcheck` endpoint.
 
 ## Tech Stack
 - **Framework**: [LangGraph](https://github.com/langchain-ai/langgraph)
-- **LLM Engine**: [Ollama](https://ollama.com/) (running `gemini-3-flash-preview:cloud`)
+- **LLM Engine**: [Ollama](https://ollama.com/) (model: `lfm2.5-thinking`)
 - **Vector DB**: [Qdrant](https://qdrant.tech/)
 - **API**: FastAPI
 - **Embeddings**: `sentence-transformers` (`all-MiniLM-L6-v2`)
@@ -23,6 +24,8 @@ The agent follows a cyclic graph:
 2. `audit`: Retrieves policies and flags violations.
 3. `human_review`: (Conditional) Manual approval if audit fails.
 4. `output`: Final state export.
+
+Execution uses LangGraph with an in-memory checkpointer and a conditional route from `audit` to `output` or `human_review` based on status.
 
 ## Setup
 
@@ -39,8 +42,10 @@ The agent follows a cyclic graph:
 2. Configure `.env`:
    ```env
    QDRANT_URL=your_qdrant_url
-   QDRANT_API_KEY=your_api_key
+    QDRANT_API_KEY=your_api_key
    ```
+
+`QDRANT_API_KEY` is required for `app/seed.py`. It is optional at runtime if your Qdrant instance is not secured.
 
 ## Usage
 1. Seed the policy database:
@@ -54,4 +59,12 @@ The agent follows a cyclic graph:
 3. Process an invoice:
    ```bash
    curl -X POST -F "file=@invoice.pdf" http://localhost:8000/process-invoice
+   ```
+4. Poll status:
+   ```bash
+   curl http://localhost:8000/status/<task_id>
+   ```
+5. Healthcheck:
+   ```bash
+   curl http://localhost:8000/healthcheck
    ```

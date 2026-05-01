@@ -23,10 +23,7 @@ client = QdrantClient(
     api_key=os.environ.get("QDRANT_API_KEY"),
 )
 
-model = ChatOllama(
-    model="gemini-3-flash-preview:cloud",
-    base_url="https://ollama.com",
-)
+model = ChatOllama(model="lfm2.5-thinking", temperature=0.1)
 
 EXTRACTOR_SYSTEM_PROMPT = SystemMessage(
     content=load_prompt("app/prompts/extraction_agent_prompt.md")
@@ -37,7 +34,28 @@ def extract_node(state: AgentState) -> dict:
     raw = state.get("raw_text")
     response = model.invoke([EXTRACTOR_SYSTEM_PROMPT, HumanMessage(content=raw)])
 
-    return {"structured_data": response.content, "status": "processed"}
+    content = response.content
+    if isinstance(content, list):
+        content = "".join(
+            [i if isinstance(i, str) else i.get("text", "") for i in content]
+        )
+
+    content = content.replace("```json", "").replace("```", "").strip()
+
+    try:
+        match = re.search(r"\{.*\}", content, re.DOTALL)
+        if match:
+            structured_data = json.loads(match.group())
+        else:
+            structured_data = {"error": "No JSON found in response", "raw": content}
+
+    except json.JSONDecodeError:
+        structured_data = {"error": "Invalid JSON format", "raw": content}
+
+    return {
+        "structured_data": structured_data,
+        "status": "processed",
+    }
 
 
 AUDITOR_SYSTEM_PROMPT = SystemMessage(
@@ -66,7 +84,6 @@ def audit_node(state: AgentState) -> dict:
         f"Relevant company policies:\n{policy_context}"
     )
 
-    # 3. Audit with grounded context
     response = model.invoke(
         [
             grounded_system_prompt,
