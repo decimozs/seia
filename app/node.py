@@ -1,29 +1,35 @@
 import json
+import logging
 import os
 import re
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_ollama import ChatOllama
+from langchain_ollama import ChatOllama, OllamaEmbeddings
 from qdrant_client import QdrantClient
-from sentence_transformers import SentenceTransformer
+from rich.console import Console
+from rich.panel import Panel
+from rich.prompt import Prompt
+from rich.table import Table
 
 from app.state import AgentState
 from app.utils import load_prompt
 
+console = Console()
+
 load_dotenv()
 
 COLLECTION_NAME = "seia-collection"
-EMBED_MODEL = "all-MiniLM-L6-v2"
+EMBED_MODEL = "nomic-embed-text"
 
-embedder = SentenceTransformer(EMBED_MODEL)
+embeddings = OllamaEmbeddings(model=EMBED_MODEL)
 
 client = QdrantClient(
     url=os.environ["QDRANT_URL"],
     api_key=os.environ.get("QDRANT_API_KEY"),
 )
 
-model = ChatOllama(model="lfm2.5-thinking", temperature=0.1)
+model = ChatOllama(model="lfm2.5-thinking", temperature=0)
 
 EXTRACTOR_SYSTEM_PROMPT = SystemMessage(
     content=load_prompt("app/prompts/extraction_agent_prompt.md")
@@ -33,7 +39,6 @@ EXTRACTOR_SYSTEM_PROMPT = SystemMessage(
 def extract_node(state: AgentState) -> dict:
     raw = state.get("raw_text")
     response = model.invoke([EXTRACTOR_SYSTEM_PROMPT, HumanMessage(content=raw)])
-
     content = response.content
     if isinstance(content, list):
         content = "".join(
@@ -64,36 +69,36 @@ AUDITOR_SYSTEM_PROMPT = SystemMessage(
 
 
 def retrieve_policies(query: str, top_k: int = 5) -> list[str]:
-    query_vec = embedder.encode(query).tolist()
+    query_vec = embeddings.embed_query(query)
     results = client.query_points(
         collection_name=COLLECTION_NAME,
         query=query_vec,
         limit=top_k,
         with_payload=True,
     )
-    return [hit.payload["text"] for hit in results.points]
+    hits = [hit.payload["text"] for hit in results.points]
+    return hits
 
 
 def audit_node(state: AgentState) -> dict:
     expense = state.get("structured_data")
     retrieved_policies = retrieve_policies(str(expense))
     policy_context = "\n".join(f"- {p}" for p in retrieved_policies)
-
+    prompt_text = AUDITOR_SYSTEM_PROMPT.content
     grounded_system_prompt = SystemMessage(
-        content=f"{AUDITOR_SYSTEM_PROMPT}\n\n"
-        f"Relevant company policies:\n{policy_context}"
+        content=f"{prompt_text}\n\nRelevant company policies:\n{policy_context}"
     )
-
     response = model.invoke(
         [
             grounded_system_prompt,
             HumanMessage(content=f"Review this expense: {expense}"),
         ]
     )
-
     raw = re.sub(r"```(?:json)?\s*|\s*```", "", response.content).strip()
-    parsed = json.loads(raw)
-
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        parsed = {"status": "error", "audit_remarks": raw}
     return {
         "status": parsed.get("status", ""),
         "audit_remarks": parsed.get("audit_remarks", ""),
@@ -102,33 +107,39 @@ def audit_node(state: AgentState) -> dict:
 
 
 def output_node(state: AgentState):
-    data = state["structured_data"]
-
-    if data is None:
-        return state
-
-    print(f"Output Data: {data}")
-    print(f"Output State: {state}")
-
     return state
 
 
 def human_review_node(state: AgentState) -> dict:
-    print("\nPolicy violation detected. Human review required.")
-    print(f"Audit Remarks: {state['audit_remarks']}")
-    print(f"Expense Data:\n{state['structured_data']}\n")
+    logger = logging.getLogger("uvicorn.access")
+    original_disabled = logger.disabled
+    logger.disabled = True
+    logging.disable(logging.INFO)
 
-    feedback = input(
-        "Enter your decision (approve/reject) and remarks, e.g. 'approve: looks fine': "
-    ).strip()
+    try:
+        with console.screen():
+            table = Table(show_header=True, header_style="bold magenta")
+            table.add_column("Field", width=20)
+            table.add_column("Value", width=40)
+            for key, value in state["structured_data"].items():
+                table.add_row(str(key).capitalize(), str(value))
+            console.print(
+                Panel(
+                    f"[bold red]Violation Detected:[/bold red]\n{state['audit_remarks']}",
+                    title="[bold yellow] SEIA Audit Intervention [/bold yellow]",
+                    border_style="yellow",
+                ),
+                justify="center",
+            )
+            console.print(table, justify="center")
+            feedback = Prompt.ask(
+                "\n[bold cyan]Decision (approve/reject)[/bold cyan]"
+            ).strip()
 
+    finally:
+        logger.disabled = original_disabled
+        logging.disable(logging.NOTSET)
     if feedback.lower().startswith("approve"):
-        return {
-            "status": "approved",
-            "human_feedback": feedback,
-        }
+        return {"status": "approved", "human_feedback": feedback}
     else:
-        return {
-            "status": "rejected",
-            "human_feedback": feedback,
-        }
+        return {"status": "rejected", "human_feedback": feedback}

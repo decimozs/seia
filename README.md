@@ -18,7 +18,7 @@ Smart Expense & Invoice Auditor agentic pipeline bridging unstructured document 
 - **Tracing**: [Langfuse](https://langfuse.com/)
 - **Vector DB**: [Qdrant](https://qdrant.tech/)
 - **API**: FastAPI
-- **Embeddings**: `sentence-transformers` (`all-MiniLM-L6-v2`)
+- **Embeddings**: Ollama (`nomic-embed-text`)
 
 ## Architecture
 The agent follows a cyclic graph:
@@ -71,6 +71,7 @@ Configure Langfuse environment variables if tracing is enabled for your deployme
    ```bash
    python -m app.seed
    ```
+   Expects `policy.pdf` in `policies/policy.pdf` or `app/policies/policy.pdf`.
 2. Start the server:
    ```bash
    fastapi dev app/main.py

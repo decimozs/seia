@@ -50,7 +50,6 @@ async def healthcheck():
 
 @app.post("/process-invoice")
 async def process_invoice(request: Request, background_tasks: BackgroundTasks):
-    # 1. Extract file from form data
     form = await request.form()
     if not form:
         raise HTTPException(status_code=400, detail="No form data received")
