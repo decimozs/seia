@@ -22,7 +22,7 @@ jobs:
       - name: Install regtrace
         run: |
           curl -L -o /usr/local/bin/regtrace \
-            https://github.com/decimozs/regtrace/releases/latest/download/regtrace
+            https://github.com/decimozs/regtrace/releases/latest/download/regtrace-linux-x64
           chmod +x /usr/local/bin/regtrace
           regtrace --version
 
