@@ -1,0 +1,74 @@
+project:
+  name: seia
+  version: "1.0.0"
+  description: Smart Expense & Invoice Auditor — LLM quality evaluation
+
+golden_sets:
+  - path: golden-sets/extraction.yaml
+    enabled: true
+    weight: 1
+  - path: golden-sets/audit.yaml
+    enabled: true
+    weight: 1
+
+metrics:
+  default_threshold: 0.7
+  factuality:
+    mode: lenient
+    claim_extraction_depth: shallow
+    rag_faithfulness_only: false
+  format:
+    sub_checks:
+      length: true
+      json_validity: true
+      json_schema: true
+      markdown_structure: true
+      required_fields: true
+      forbidden_content: true
+      regex_match: true
+    length_tolerance: 0.2
+    strict_json: false
+  tone:
+    sub_dimensions:
+      formality: true
+      sentiment: true
+      assertiveness: true
+      persona_consistency: true
+      verbosity: true
+  regression:
+    baseline_strategy: last_passing
+    tolerance: 0.05
+    critical_threshold: 0.15
+    exclude_new_test_cases: true
+
+judge:
+  primary:
+    provider: anthropic
+    model: claude-haiku-4-5-20251001
+    temperature: 0.1
+    max_tokens: 4096
+    timeout_ms: 30000
+    retry_attempts: 3
+
+generator:
+  provider: anthropic
+  model: claude-haiku-4-5-20251001
+  temperature: 0.4
+  max_tokens: 4096
+  timeout_ms: 60000
+  retry_attempts: 3
+
+run:
+  concurrency: 1
+
+quality_gates:
+  suite_score_minimum: 0.7
+  max_failed_test_cases: 0
+  max_low_confidence_ratio: 0.1
+  regression_gate: true
+
+output:
+  run_history_limit: 50
+  default_format: terminal
+  color: auto
+  ci_mode_auto_detect: true

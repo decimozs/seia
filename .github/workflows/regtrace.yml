@@ -1,0 +1,66 @@
+name: LLM Quality Gates
+
+on:
+  pull_request:
+    paths:
+      - golden-sets/**
+      - regtrace.config.yaml
+  push:
+    branches: [main]
+    paths:
+      - golden-sets/**
+      - regtrace.config.yaml
+  schedule:
+    - cron: "0 6 * * *"
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install regtrace
+        run: |
+          curl -L -o /usr/local/bin/regtrace \
+            https://github.com/decimozs/regtrace/releases/latest/download/regtrace
+          chmod +x /usr/local/bin/regtrace
+          regtrace --version
+
+      - name: Cache regression history
+        uses: actions/cache@v4
+        with:
+          path: .regtrace
+          key: regtrace-${{ hashFiles('golden-sets/**', 'regtrace.config.yaml') }}
+
+      - name: Dry-run validation
+        run: regtrace run --dry-run
+
+      - name: Generate outputs
+        run: regtrace run --generate
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Evaluate
+        run: regtrace run --ci --format markdown --output report.md
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: regtrace-report
+          path: report.md
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('report.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Regtrace Evaluation\n\n${report}`
+            });

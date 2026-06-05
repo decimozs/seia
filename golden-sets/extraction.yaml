@@ -1,0 +1,177 @@
+name: seia-extraction
+version: "1.0.0"
+description: >
+  Tests the SEIA extraction agent (extract_node). Input is raw OCR text from
+  receipts/invoices. Expected output is the correct structured expense JSON.
+  System prompt matches app/prompts/extraction_agent_prompt.md.
+interaction_type: single_turn
+tags: [seia, extraction, financial]
+author: seia
+created_at: "2026-06-05"
+updated_at: "2026-06-05"
+test_cases:
+  - id: ext-001
+    description: "Approved invoice — Jollibee, PHP 431.20, Meals, no justification"
+    system_prompt: &extractor_prompt |
+      # ROLE
+      You are a High-Precision Financial Data Extractor. Your goal is to transform raw OCR text from receipts and invoices into a structured JSON format for RAG-based auditing.
+
+      # EXTRACTION RULES
+      1. **Merchant**: Identify the primary vendor name. Look for the largest text at the top or "Business Name" fields.
+      2. **Date**: Extract in `YYYY-MM-DD` format. If multiple dates exist, use the "Transaction Date" or "Date of Issue." Default to null if not found.
+      3. **Amount**: Extract the final "Total" or "Amount Due" as a float. Remove commas and currency symbols.
+      4. **Currency**: Use ISO 3-letter codes (e.g., PHP, USD).
+      5. **Category**: Map the expense strictly to: [Travel, Meals, Supplies, Utilities, Software, Others].
+      6. **Justification**:
+         - **CRITICAL**: ONLY extract text that explicitly describes the business purpose or reason for the purchase (e.g., "Client Lunch," "Server Hosting").
+         - Do NOT extract merchant slogans, footers, or "Thank you" notes.
+         - If no explicit business purpose is found in the text, return an empty string "".
+
+      # OUTPUT FORMAT
+      Return ONLY a valid JSON object. Do not include markdown headers or conversational text.
+      {
+        "merchant": "string",
+        "date": "YYYY-MM-DD" | null,
+        "amount": float,
+        "currency": "string",
+        "category": "string",
+        "justification": "string"
+      }
+    input: |
+      OFFICIAL RECEIPT
+      DATE OF ISSUE: 2026-05-01
+      INVOICE NUMBER: OR-772910
+      CATEGORY: Meals
+      CURRENCY: PHP
+      BILL TO: TechAudit Corp Philippines, BGC, Taguig City
+      Merchant: Jollibee Foods Corporation, Ground Floor, Estancia Mall, Pasig City
+      TIN: 000-123-456-000
+
+      DESCRIPTION                  QTY   UNIT PRICE   AMOUNT
+      Chickenjoy Solo Meal          1      155.00      155.00
+      Jolly Spaghetti Family Pan    1      230.00      230.00
+                                            Subtotal    385.00
+                                            VAT (12%)    46.20
+                                            TOTAL PHP   431.20
+    expected_output: |
+      {"merchant": "Jollibee Foods Corporation", "date": "2026-05-01", "amount": 431.20, "currency": "PHP", "category": "Meals", "justification": ""}
+    actual_output: null
+    metrics: [factuality, format]
+    tags: [approved, meals, happy-path]
+    weight: 1.0
+
+  - id: ext-002
+    description: "Violated invoice — CloudSaaS, PHP 2,798.88, Software, missing justification"
+    system_prompt: *extractor_prompt
+    input: |
+      OFFICIAL RECEIPT
+      DATE OF ISSUE: 2026-05-02
+      INVOICE NUMBER: INV-2026-0502
+      CATEGORY: Software
+      CURRENCY: PHP
+      BILL TO: TechAudit Corp Philippines, BGC, Taguig City
+      Merchant: CloudSaaS Professional Services, Level 18, Business Bay Tower, Makati City
+      TIN: 000-123-456-000
+
+      DESCRIPTION                              QTY   UNIT PRICE   AMOUNT
+      Monthly Enterprise Subscription - Standard 1      2,499.00    2,499.00
+                                                  Subtotal    2,499.00
+                                                  VAT (12%)     299.88
+                                                  TOTAL PHP  2,798.88
+    expected_output: |
+      {"merchant": "CloudSaaS Professional Services", "date": "2026-05-02", "amount": 2798.88, "currency": "PHP", "category": "Software", "justification": ""}
+    actual_output: null
+    metrics: [factuality, format]
+    tags: [violated, software, missing-justification]
+    weight: 1.0
+
+  - id: ext-003
+    description: "Over-limit meal receipt — Max's Restaurant, PHP 924.00, Meals, with explicit justification"
+    system_prompt: *extractor_prompt
+    input: |
+      OFFICIAL RECEIPT
+      Max's Restaurant
+      Third Floor, SM Aura Premier
+      Taguig City, 1634
+      TIN: 000-765-432-000
+
+      DATE OF ISSUE: 2026-05-15
+      INVOICE NUMBER: OR-783451
+      CATEGORY: Meals
+      CURRENCY: PHP
+      Justification: Client lunch - Acme Corp onboarding
+
+      BILL TO: TechAudit Corp Philippines, BGC, Taguig City
+
+      DESCRIPTION                        QTY  UNIT PRICE  AMOUNT
+      Max's Group Chicken Family Meal    1     580.00     580.00
+      Extra Rice                          2      55.00     110.00
+      Iced Tea                            3      45.00     135.00
+                                          Subtotal     825.00
+                                          VAT (12%)      99.00
+                                          TOTAL PHP     924.00
+    expected_output: |
+      {"merchant": "Max's Restaurant", "date": "2026-05-15", "amount": 924.00, "currency": "PHP", "category": "Meals", "justification": "Client lunch - Acme Corp onboarding"}
+    actual_output: null
+    metrics: [factuality, format]
+    tags: [meals, over-limit, with-justification, synthetic]
+    weight: 1.0
+
+  - id: ext-004
+    description: "Ride-hailing receipt — Grab, USD 12.50, Travel, fuzzy date 'May 3, 2026'"
+    system_prompt: *extractor_prompt
+    input: |
+      SALES INVOICE
+      Grab Holdings Inc.
+      BGC, Taguig City
+
+      Date: May 3, 2026
+      Receipt #: GR-2026-0503
+      Payment: Visa **** 4242
+
+      Trip: BGC to NAIA Terminal 3
+      Distance: 8.5 km
+      Duration: 25 mins
+
+      Base Fare:           $8.50
+      Distance Fee:        $2.50
+      Booking Fee:         $1.00
+      Toll Fee:            $0.50
+                           -----
+      Total Charged:      $12.50
+      Currency: USD
+      Category: Travel
+    expected_output: |
+      {"merchant": "Grab Holdings Inc.", "date": "2026-05-03", "amount": 12.50, "currency": "USD", "category": "Travel", "justification": ""}
+    actual_output: null
+    metrics: [factuality, format]
+    tags: [travel, fuzzy-date, foreign-currency, synthetic]
+    weight: 1.0
+
+  - id: ext-005
+    description: "Office supplies — National Book Store, PHP 1,400.00, Supplies, no date field in OCR"
+    system_prompt: *extractor_prompt
+    input: |
+      SALES INVOICE
+      National Book Store
+      SM Megamall, Mandaluyong City
+      TIN: 000-789-012-000
+
+      INVOICE NUMBER: SI-2026-0601
+      CATEGORY: Supplies
+      CURRENCY: PHP
+
+      BILL TO: TechAudit Corp Philippines
+
+      DESCRIPTION                        QTY  UNIT PRICE  AMOUNT
+      Office Chair - Ergonomic            1     850.00     850.00
+      Printer Paper (ream)                4     100.00     400.00
+                                          Subtotal   1,250.00
+                                          VAT (12%)    150.00
+                                          TOTAL PHP  1,400.00
+    expected_output: |
+      {"merchant": "National Book Store", "date": null, "amount": 1400.00, "currency": "PHP", "category": "Supplies", "justification": ""}
+    actual_output: null
+    metrics: [factuality, format]
+    tags: [supplies, missing-date, ambiguous-category, synthetic]
+    weight: 1.0
