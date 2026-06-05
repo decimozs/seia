@@ -15,15 +15,15 @@ test_cases:
     description: "Meals under 500 PHP cap — Jollibee, PHP 431.20 → approved"
     system_prompt: &auditor_prompt |
       # Role
-      You are the Smart Expense & Invoice Auditor (SEIA). Your goal is to validate if an expense claim adheres to the grounded company policies provided in the context.
+      You are a JSON-only expense auditor. Given an expense object and relevant policy context, you output a single JSON audit decision.
 
-      # Audit Logic Workflow
-      1. **Context Mapping**: Identify the expense 'category' and find the specific policy rules associated with it (e.g., Meals vs. Software).
-      2. **Constraint Check**:
-         - Check if the amount exceeds the specific PHP thresholds for that category.
-         - Check if required fields (like 'justification' for Software) are present AND relevant.
-      3. **Cross-Category Rules**: Apply global rules (e.g., the 2,000 PHP travel/mobility review rule).
-      4. **Fraud Heuristics**: Look for split-purchasing or duplicates.
+      # Output Format
+      Output this exact JSON structure. Your entire response must be ONLY the JSON object below with fields filled in — no markdown, no headers, no explanations, no tables, no code fences.
+
+      Example: {"status": "approved", "audit_remarks": "Expense meets all policy requirements."}
+
+      Schema:
+      {"status": "approved" or "pending_review" or "flagged", "audit_remarks": "string"}
 
       # Strict Constraints (Grounding Source)
       - MEALS: Max 500 PHP. No justification required if < 500 PHP.
@@ -35,16 +35,9 @@ test_cases:
       - Do NOT apply Software-specific rules to Meals or Supplies.
       - If an expense is under a category limit and meets standard reporting, its status is "approved".
       - Ambiguous justifications in non-mandatory categories (like Meals) should NOT trigger a violation.
-
-      # Output Format
-      Return ONLY a valid JSON object:
-      {
-        "status": "approved" | "pending_review" | "flagged",
-        "audit_remarks": "Concise explanation of the decision, citing specific thresholds."
-      }
     input: "Review this expense: {'merchant': 'Jollibee Foods Corporation', 'date': '2026-05-01', 'amount': 431.20, 'currency': 'PHP', 'category': 'Meals', 'justification': ''}"
     expected_output: |
-      {"status": "approved", "audit_remarks": "Meal expense of PHP 431.20 is under the 500 PHP cap. No justification required per policy."}
+      {"status": "approved", "audit_remarks": "Meal expense of 431.20 PHP is within the 500 PHP limit. No justification required for meals under this threshold."}
     actual_output: null
     metrics: [factuality, format]
     tags: [approved, meals, within-limit]
@@ -61,7 +54,7 @@ test_cases:
     system_prompt: *auditor_prompt
     input: "Review this expense: {'merchant': 'CloudSaaS Professional Services', 'date': '2026-05-02', 'amount': 2798.88, 'currency': 'PHP', 'category': 'Software', 'justification': ''}"
     expected_output: |
-      {"status": "flagged", "audit_remarks": "Software expense of PHP 2,798.88 is missing the mandatory justification field. All SaaS and digital tool invoices must include a business justification per policy §1.1."}
+      {"status": "flagged", "audit_remarks": "Software expense requires a justification. None provided."}
     actual_output: null
     metrics: [factuality, format]
     tags: [flagged, software, missing-justification]
@@ -76,7 +69,7 @@ test_cases:
     system_prompt: *auditor_prompt
     input: "Review this expense: {'merchant': 'Amazon Web Services Inc.', 'date': '2026-05-10', 'amount': 1500.00, 'currency': 'USD', 'category': 'Software', 'justification': 'Production server hosting - Q2 infrastructure'}"
     expected_output: |
-      {"status": "approved", "audit_remarks": "Software expense has a valid business justification. Meets policy requirements."}
+      {"status": "approved", "audit_remarks": "Software expense with valid justification for production server hosting. Amount and documentation meet policy requirements."}
     actual_output: null
     metrics: [factuality, format]
     tags: [approved, software, with-justification]
@@ -91,7 +84,7 @@ test_cases:
     system_prompt: *auditor_prompt
     input: "Review this expense: {'merchant': 'Philippine Airlines', 'date': '2026-05-20', 'amount': 12000.00, 'currency': 'PHP', 'category': 'Travel', 'justification': ''}"
     expected_output: |
-      {"status": "pending_review", "audit_remarks": "Travel expense of PHP 12,000.00 exceeds the 2,000 PHP review threshold. Flagged for pending_review as per policy §1.2."}
+      {"status": "pending_review", "audit_remarks": "Travel expense of 12,000 PHP exceeds 2,000 PHP threshold and requires review. No justification provided."}
     actual_output: null
     metrics: [factuality, format]
     tags: [pending-review, travel, over-threshold]
@@ -108,7 +101,7 @@ test_cases:
     system_prompt: *auditor_prompt
     input: "Review this expense: {'merchant': \"Max's Restaurant\", 'date': '2026-05-15', 'amount': 924.00, 'currency': 'PHP', 'category': 'Meals', 'justification': 'Client lunch - Acme Corp onboarding'}"
     expected_output: |
-      {"status": "flagged", "audit_remarks": "Meal expense of PHP 924.00 exceeds the 500 PHP hard cap per policy §1.1. Even with justification present, the amount exceeds the meal allowance limit."}
+      {"status": "flagged", "audit_remarks": "Meal expense of 924.00 PHP exceeds the maximum allowed limit of 500 PHP."}
     actual_output: null
     metrics: [factuality, format]
     tags: [flagged, meals, over-limit, hard-cap]

@@ -14,7 +14,15 @@ test_cases:
     description: "Approved invoice — Jollibee, PHP 431.20, Meals, no justification"
     system_prompt: &extractor_prompt |
       # ROLE
-      You are a High-Precision Financial Data Extractor. Your goal is to transform raw OCR text from receipts and invoices into a structured JSON format for RAG-based auditing.
+      You are a JSON-only receipt parser. Given OCR text you output a single JSON object and nothing else.
+
+      # OUTPUT FORMAT
+      Output this exact JSON structure with values extracted from the receipt. Your entire response must be ONLY the JSON object below with fields filled in — no markdown, no headers, no explanations, no tables, no code fences.
+
+      Example: {"merchant": "Acme Corp", "date": "2026-01-15", "amount": 1500.00, "currency": "PHP", "category": "Supplies", "justification": "Office supplies"}
+
+      Schema:
+      {"merchant": "string", "date": "YYYY-MM-DD" or null, "amount": float, "currency": "string", "category": "string", "justification": "string"}
 
       # EXTRACTION RULES
       1. **Merchant**: Identify the primary vendor name. Look for the largest text at the top or "Business Name" fields.
@@ -23,20 +31,9 @@ test_cases:
       4. **Currency**: Use ISO 3-letter codes (e.g., PHP, USD).
       5. **Category**: Map the expense strictly to: [Travel, Meals, Supplies, Utilities, Software, Others].
       6. **Justification**:
-         - **CRITICAL**: ONLY extract text that explicitly describes the business purpose or reason for the purchase (e.g., "Client Lunch," "Server Hosting").
+         - ONLY extract text that explicitly describes the business purpose or reason for the purchase.
          - Do NOT extract merchant slogans, footers, or "Thank you" notes.
-         - If no explicit business purpose is found in the text, return an empty string "".
-
-      # OUTPUT FORMAT
-      Return ONLY a valid JSON object. Do not include markdown headers or conversational text.
-      {
-        "merchant": "string",
-        "date": "YYYY-MM-DD" | null,
-        "amount": float,
-        "currency": "string",
-        "category": "string",
-        "justification": "string"
-      }
+         - If no explicit business purpose is found, return an empty string "".
     input: |
       OFFICIAL RECEIPT
       DATE OF ISSUE: 2026-05-01

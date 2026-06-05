@@ -40,6 +40,7 @@ def extract_node(state: AgentState) -> dict:
     raw = state.get("raw_text")
     response = model.invoke([EXTRACTOR_SYSTEM_PROMPT, HumanMessage(content=raw)])
     content = response.content
+
     if isinstance(content, list):
         content = "".join(
             [i if isinstance(i, str) else i.get("text", "") for i in content]
