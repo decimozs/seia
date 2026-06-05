@@ -36,13 +36,8 @@ jobs:
       - name: Dry-run validation
         run: regtrace run --dry-run
 
-      - name: Generate outputs
-        run: regtrace run --generate
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-
-      - name: Evaluate
-        run: regtrace run --ci --format markdown --output report.md
+      - name: Generate & Evaluate
+        run: regtrace run --ci --generate --format markdown --output report.md
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
